@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.svg'
+      - 'LICENSE'
+  pull_request:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Lint, typecheck, build, test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20']
+
+    env:
+      # App
+      NODE_ENV: test
+      APP_VERSION: 0.0.0-ci
+      APP_BASE_URL: http://localhost:3000
+      PORT: 8787
+
+      # Supabase (dummy values so env loader does not throw)
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_ANON_KEY: anon_test_key
+      SUPABASE_SERVICE_ROLE_KEY: service_role_test_key
+      SUPABASE_JWT_SECRET: jwt_test_key
+
+      # Billing providers
+      BILLING_PROVIDER: paymongo,paypal
+
+      # PayMongo (dummy)
+      PAYMONGO_SECRET_KEY: sk_test_dummy
+      PAYMONGO_PUBLIC_KEY: pk_test_dummy
+      PAYMONGO_WEBHOOK_SECRET: whsec_test_dummy
+
+      # PayPal (dummy)
+      PAYPAL_CLIENT_ID: paypal_client_id_dummy
+      PAYPAL_CLIENT_SECRET: paypal_client_secret_dummy
+      PAYPAL_MODE: sandbox
+      PAYPAL_WEBHOOK_ID: paypal_webhook_id_dummy
+
+      # KV and Redis (dummy)
+      POLARIS_REST_API_KV_URL: redis://localhost:6379
+      POLARIS_REST_API_KV_REST_API_URL: http://localhost:8787/kv
+      POLARIS_REST_API_KV_REST_API_TOKEN: kv_token_dummy
+      POLARIS_REST_API_KV_REST_API_READ_ONLY_TOKEN: kv_ro_token_dummy
+      POLARIS_REST_API_REDIS_URL: redis://localhost:6379
+
+      # OpenAI (dummy)
+      OPENAI_API_KEY: sk-test-dummy
+
+      # Optional
+      DRIP_PROVIDER: outbox
+      ADMIN_API_KEY: ci-admin-key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies (clean)
+        run: npm ci
+
+      - name: Lint
+        run: npm run -s lint --if-present
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.typecheck ? 0 : 1)"; then
+            npm run -s typecheck
+          else
+            npx tsc --noEmit
+          fi
+
+      - name: Build
+        shell: bash
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+            npm run -s build
+          else
+            npx tsc -p tsconfig.json
+          fi
+
+      - name: Test
+        run: npm test --if-present
+        env:
+          CI: true
+
+      - name: Upload coverage (if present)
+        if: ${{ hashFiles('coverage/**') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.node }}
+          path: coverage/
+
+  validate-workspace:
+    name: Validate formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prettier check
+        run: npm run -s format:check --if-present

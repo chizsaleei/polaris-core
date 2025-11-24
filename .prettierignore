@@ -1,0 +1,15 @@
+# deps and build
+node_modules
+.next
+dist
+build
+coverage
+.vscode
+.vercel
+# assets and snapshots
+public/og
+public/coach-assets/*-1600.png
+public/coach-assets/*-1200x630.jpg
+*.snap
+# misc
+package-lock.json
