@@ -3,13 +3,11 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "functions": {
-    "api/**.ts": {
-      "runtime": "nodejs18.x",
+    "api/**.ts": {   
       "memory": 1024,
       "maxDuration": 30
     },
     "api/**.js": {
-      "runtime": "nodejs18.x",
       "memory": 1024,
       "maxDuration": 30
     }
