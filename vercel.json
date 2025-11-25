@@ -18,6 +18,5 @@
     { "src": "/health", "dest": "/api/server" },
     { "src": "/version", "dest": "/api/server" },
     { "src": "/api/(.*)", "dest": "/api/server" }
-  ],
-  "cleanUrls": true
+  ]
 }
