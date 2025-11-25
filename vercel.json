@@ -4,12 +4,12 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/**.ts": {
-      "runtime": "nodejs20.x",
+      "runtime": "nodejs18.x",
       "memory": 1024,
       "maxDuration": 30
     },
     "api/**.js": {
-      "runtime": "nodejs20.x",
+      "runtime": "nodejs18.x",
       "memory": 1024,
       "maxDuration": 30
     }
