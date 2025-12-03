@@ -414,8 +414,8 @@ app.use(
 // Start
 // -----------------------------------------------------------------------------
 
-app.listen(ENV.PORT, () => {
-  log.info(`polaris-core listening on http://localhost:${ENV.PORT}`);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server running");
 });
 
 // -----------------------------------------------------------------------------

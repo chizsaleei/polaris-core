@@ -7,6 +7,16 @@
  * - Customer portal: redirect to in app billing (PayPal has no hosted portal)
  */
 
+import {
+  CheckoutPaymentIntent,
+  Client as PayPalClient,
+  Environment as PayPalEnvironment,
+  type OAuthToken,
+  OrderApplicationContextUserAction,
+  OrdersController,
+  type OrderRequest,
+} from "@paypal/paypal-server-sdk";
+
 import { log, safeError } from "../logger";
 import type { PlanKey } from "../constants";
 import type { Currency } from "./currency";
@@ -33,6 +43,16 @@ const APP_BASE_URL = (process.env.NEXT_PUBLIC_APP_BASE_URL || process.env.APP_BA
 
 if (!CLIENT_ID || !CLIENT_SECRET) log.warn("PAYPAL_CLIENT_ID/SECRET not set. Checkout will fail.");
 if (!WEBHOOK_ID) log.warn("PAYPAL_WEBHOOK_ID not set. Webhook verification will fail.");
+
+const paypalClient = new PayPalClient({
+  environment: MODE === "live" ? PayPalEnvironment.Production : PayPalEnvironment.Sandbox,
+  clientCredentialsAuthCredentials: {
+    oAuthClientId: CLIENT_ID,
+    oAuthClientSecret: CLIENT_SECRET,
+  },
+});
+const ordersController = new OrdersController(paypalClient);
+let cachedOAuthToken: OAuthToken | undefined;
 
 // ----------------------------- Pricing --------------------------------
 
@@ -77,48 +97,13 @@ function safeParseJson(raw: string): unknown {
   }
 }
 
-// ----------------------------- OAuth cache ----------------------------
-
-interface PaypalOAuthResponse {
-  access_token?: string;
-  expires_in?: number;
-  [key: string]: unknown;
+async function paypalAccessToken(): Promise<string> {
+  cachedOAuthToken = await paypalClient.clientCredentialsAuthManager.updateToken(cachedOAuthToken);
+  return cachedOAuthToken.accessToken;
 }
 
-let _oauth: { token: string; exp: number } | null = null; // exp = epoch ms
-
-function isOAuthResponse(value: unknown): value is PaypalOAuthResponse {
-  return isRecord(value);
-}
-
-async function accessToken(): Promise<string> {
-  const now = Date.now();
-  if (_oauth && _oauth.exp - 60_000 > now) return _oauth.token;
-
-  const res = await fetch(`${API_BASE}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64")}`,
-    },
-    body: new URLSearchParams({ grant_type: "client_credentials" }),
-  });
-
-  const body = await safeReadJson(res);
-
-  if (!res.ok || !isOAuthResponse(body)) {
-    log.error("paypal oauth failed", { status: res.status, body });
-    throw new Error(`PayPal oauth ${res.status}`);
-  }
-
-  const token = String(body.access_token ?? "");
-  const expiresIn = Number(body.expires_in ?? 300);
-  _oauth = { token, exp: now + Math.max(60_000, expiresIn * 1000) };
-  return token;
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await accessToken();
+async function paypalApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await paypalAccessToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
@@ -205,40 +190,35 @@ async function createCheckoutSession(params: CheckoutParams): Promise<CheckoutSe
   const description = `Polaris Coach - ${planLabel(params.planKey)}`;
   const custom = buildCustomMeta(params.userId, params.planKey);
 
-  type OrderRes = {
-    id?: string;
-    links?: Array<{ rel?: string; href?: string; method?: string }>;
-  };
-
-  const payload = {
-    intent: "CAPTURE",
-    purchase_units: [
+  const orderRequest: OrderRequest = {
+    intent: CheckoutPaymentIntent.Capture,
+    purchaseUnits: [
       {
-        reference_id: `user_${params.userId}`.slice(0, 35),
+        referenceId: `user_${params.userId}`.slice(0, 35),
         description,
-        custom_id: custom.slice(0, 127),
-        amount: { currency_code: billingCurrency, value: amount_value },
+        customId: custom.slice(0, 127),
+        amount: { currencyCode: billingCurrency, value: amount_value },
       },
     ],
-    application_context: {
-      brand_name: "Polaris Coach",
-      user_action: "PAY_NOW",
-      return_url: params.successUrl,
-      cancel_url: params.cancelUrl,
+    applicationContext: {
+      brandName: "Polaris Coach",
+      userAction: OrderApplicationContextUserAction.PayNow,
+      returnUrl: params.successUrl,
+      cancelUrl: params.cancelUrl,
     },
   };
 
-  const order = await api<OrderRes>("/v2/checkout/orders", {
-    method: "POST",
-    body: JSON.stringify(payload),
+  const { result } = await ordersController.createOrder({
+    body: orderRequest,
+    prefer: "return=representation",
   });
 
-  const approve = order.links?.find((l) => l.rel === "approve")?.href;
+  const approve = result.links?.find((l) => l.rel === "approve")?.href;
   if (!approve) throw new Error("PayPal did not return an approval link");
   return {
     url: approve,
     provider: "paypal",
-    provider_session_id: order.id,
+    provider_session_id: result.id,
     currency: billingCurrency,
   };
 }
@@ -292,7 +272,7 @@ async function verifyWebhook(input: WebhookInput): Promise<boolean> {
   type VerifyRes = { verification_status?: "SUCCESS" | "FAILURE" };
 
   try {
-    const res = await api<VerifyRes>("/v1/notifications/verify-webhook-signature", {
+    const res = await paypalApi<VerifyRes>("/v1/notifications/verify-webhook-signature", {
       method: "POST",
       body: JSON.stringify(body),
     });

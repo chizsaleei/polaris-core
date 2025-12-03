@@ -305,6 +305,8 @@ async function handleAuditChecks(
   try {
     const counts = await collectCounts();
     const origins = allowedOrigins();
+    const kvUrl = process.env.POLARIS_REST_API_KV_URL;
+    const redisUrl = process.env.POLARIS_REST_API_REDIS_URL;
 
     res.status(200).json({
       ok: true,
@@ -321,8 +323,8 @@ async function handleAuditChecks(
           paymongoSecret: mask(ENV.PAYMONGO_SECRET_KEY),
           paypalClientId: mask(ENV.PAYPAL_CLIENT_ID),
           paypalMode: ENV.PAYPAL_MODE,
-          kvUrl: ENV.POLARIS_REST_API_KV_URL ? "[set]" : "",
-          redisUrl: ENV.POLARIS_REST_API_REDIS_URL ? "[set]" : "",
+          kvUrl: kvUrl ? "[set]" : "",
+          redisUrl: redisUrl ? "[set]" : "",
           openaiKey: mask(process.env.OPENAI_API_KEY || ""),
         },
       },

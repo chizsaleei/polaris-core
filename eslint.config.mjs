@@ -10,7 +10,7 @@ export default tseslint.config(
   // Ignore build output
   {
     // Skip build outputs and the nested Next.js app that has its own lint setup
-    ignores: ['dist/**', 'build/**', 'polaris-coach-web/**']
+    ignores: ['dist/**', 'deploy/**', 'build/**', 'polaris-coach-web/**']
   },
 
   // Our server source

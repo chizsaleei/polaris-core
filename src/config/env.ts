@@ -150,17 +150,6 @@ export function serverEnv() {
     assertPresent("PAYPAL_WEBHOOK_ID", PAYPAL_WEBHOOK_ID);
   }
 
-  // KV and Redis (optional)
-  const POLARIS_REST_API_KV_URL = process.env.POLARIS_REST_API_KV_URL || "";
-  const POLARIS_REST_API_KV_REST_API_URL =
-    process.env.POLARIS_REST_API_KV_REST_API_URL || "";
-  const POLARIS_REST_API_KV_REST_API_TOKEN =
-    process.env.POLARIS_REST_API_KV_REST_API_TOKEN || "";
-  const POLARIS_REST_API_KV_REST_API_READ_ONLY_TOKEN =
-    process.env.POLARIS_REST_API_KV_REST_API_READ_ONLY_TOKEN || "";
-  const POLARIS_REST_API_REDIS_URL =
-    process.env.POLARIS_REST_API_REDIS_URL || "";
-
   // CORS and misc
   const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
   const CORS_ADDITIONAL_ORIGINS =
@@ -190,13 +179,6 @@ export function serverEnv() {
     PAYPAL_CLIENT_SECRET,
     PAYPAL_MODE,
     PAYPAL_WEBHOOK_ID,
-
-    // KV and Redis
-    POLARIS_REST_API_KV_URL,
-    POLARIS_REST_API_KV_REST_API_URL,
-    POLARIS_REST_API_KV_REST_API_TOKEN,
-    POLARIS_REST_API_KV_REST_API_READ_ONLY_TOKEN,
-    POLARIS_REST_API_REDIS_URL,
 
     // CORS and misc
     CORS_ORIGIN,
